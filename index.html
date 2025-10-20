@@ -4,106 +4,63 @@
   <meta charset="UTF-8">
   <title>Face Recognition - Teachable Machine</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      background: #f5f5f5;
-    }
-    video {
-      border-radius: 10px;
-      margin-top: 20px;
-      border: 3px solid #333;
-    }
-    #label-container {
-      margin-top: 15px;
-      font-size: 22px;
-      font-weight: bold;
-    }
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
+    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
+    video { border-radius: 10px; margin-top: 20px; border: 3px solid #333; }
+    #label-container { margin-top: 15px; font-size: 22px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>📷 Face Recognition (Laptop Camera)</h2>
-  <button id="start-btn">Start Recognition</button>
-  <button id="stop-btn">Stop Recognition</button>
+  <h2>📷 Face Recognition</h2>
+  <button onclick="init()">Start Recognition</button>
   <br>
   <video id="webcam" width="320" height="240" autoplay muted></video>
-  <div id="label-container">⏳ Waiting to start...</div>
+  <div id="label-container"></div>
 
   <script>
-    const URL = "./model/"; // Model folder relative to index.html
+    const URL = "./model/";
     let model, maxPredictions;
     const video = document.getElementById("webcam");
     const labelContainer = document.getElementById("label-container");
-    let stream;
-    let running = false;
 
-    // Load the model once at page load
-    async function loadModel() {
-      labelContainer.innerHTML = "⏳ Loading model...";
+    async function init() {
+      // Load model
       model = await tmImage.load(URL + "model.json", URL + "metadata.json");
       maxPredictions = model.getTotalClasses();
-      labelContainer.innerHTML = "✅ Model loaded. Click Start!";
-    }
 
-    async function startRecognition() {
-      if (running) return; // Prevent multiple clicks
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        video.play();
-        running = true;
-        labelContainer.innerHTML = "✅ Webcam started!";
+      // Start laptop camera
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+
+      video.onloadeddata = () => {
+        console.log("Webcam started");
         loop();
-      } catch (err) {
-        labelContainer.innerHTML = "❌ Cannot access webcam: " + err;
-        console.error(err);
-      }
-    }
-
-    function stopRecognition() {
-      if (!running) return;
-      running = false;
-      video.pause();
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      labelContainer.innerHTML = "🛑 Recognition stopped.";
+      };
     }
 
     async function loop() {
-      if (!running) return;
       await predict();
       window.requestAnimationFrame(loop);
     }
 
     async function predict() {
       if (!model) return;
+
       const prediction = await model.predict(video);
       let highest = prediction[0];
       for (let i = 1; i < prediction.length; i++) {
-        if (prediction[i].probability > highest.probability) highest = prediction[i];
+        if (prediction[i].probability > highest.probability) {
+          highest = prediction[i];
+        }
       }
+
       if (highest.className === "Me" && highest.probability > 0.8) {
         labelContainer.innerHTML = "✅ Welcome, Emad!";
       } else {
         labelContainer.innerHTML = "🚫 Unknown Face";
       }
     }
-
-    // Button events
-    document.getElementById("start-btn").addEventListener("click", startRecognition);
-    document.getElementById("stop-btn").addEventListener("click", stopRecognition);
-
-    // Load model when page loads
-    window.addEventListener("load", loadModel);
   </script>
 </body>
 </html>

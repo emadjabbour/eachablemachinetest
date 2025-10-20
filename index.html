@@ -3,63 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <title>Face Recognition - Teachable Machine</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; background: #f5f5f5; }
-    video { border-radius: 10px; margin-top: 20px; border: 3px solid #333; }
-    #label-container { margin-top: 15px; font-size: 22px; font-weight: bold; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    h2 { margin-bottom: 10px; }
+    #webcam-container { margin-top: 20px; display: inline-block; }
+    #label-container { margin-top: 15px; font-size: 20px; font-weight: bold; }
+    button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
+    video, canvas { border-radius: 10px; border: 3px solid #333; }
   </style>
 </head>
 <body>
-  <h2>📷 Face Recognition</h2>
-  <button onclick="init()">Start Recognition</button>
-  <br>
-  <video id="webcam" width="320" height="240" autoplay muted></video>
+  <h2>Teachable Machine - Face Recognition</h2>
+  <div>
+    <button id="start-btn">Start Recognition</button>
+    <button id="stop-btn" disabled>Stop Recognition</button>
+  </div>
+  <div id="webcam-container"></div>
   <div id="label-container"></div>
 
   <script>
-    const URL = "./model/";
-    let model, maxPredictions;
-    const video = document.getElementById("webcam");
-    const labelContainer = document.getElementById("label-container");
+    const URL = "./my_model/"; // path to your Teachable Machine model folder
+    let model, webcam, labelContainer, maxPredictions, rafId;
+
+    const startBtn = document.getElementById("start-btn");
+    const stopBtn = document.getElementById("stop-btn");
+
+    startBtn.onclick = init;
+    stopBtn.onclick = stopRecognition;
 
     async function init() {
-      // Load model
+      startBtn.disabled = true;
+
+      // Load Teachable Machine model
       model = await tmImage.load(URL + "model.json", URL + "metadata.json");
       maxPredictions = model.getTotalClasses();
 
-      // Start laptop camera
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = stream;
+      // Setup webcam
+      webcam = new tmImage.Webcam(320, 320, true); // width, height, flip
+      await webcam.setup(); // request access
+      await webcam.play();
+      document.getElementById("webcam-container").appendChild(webcam.canvas);
 
-      video.onloadeddata = () => {
-        console.log("Webcam started");
-        loop();
-      };
+      labelContainer = document.getElementById("label-container");
+      labelContainer.innerHTML = ""; // clear previous labels
+      for (let i = 0; i < maxPredictions; i++) {
+        labelContainer.appendChild(document.createElement("div"));
+      }
+
+      stopBtn.disabled = false;
+      loop();
     }
 
     async function loop() {
+      webcam.update(); // update the webcam frame
       await predict();
-      window.requestAnimationFrame(loop);
+      rafId = window.requestAnimationFrame(loop);
     }
 
     async function predict() {
       if (!model) return;
+      const prediction = await model.predict(webcam.canvas);
 
-      const prediction = await model.predict(video);
       let highest = prediction[0];
       for (let i = 1; i < prediction.length; i++) {
-        if (prediction[i].probability > highest.probability) {
-          highest = prediction[i];
-        }
+        if (prediction[i].probability > highest.probability) highest = prediction[i];
       }
 
-      if (highest.className === "Me" && highest.probability > 0.8) {
+      if (highest.className === "Emad" && highest.probability > 0.8) {
         labelContainer.innerHTML = "✅ Welcome, Emad!";
+      } else if (highest.className === "Amany" && highest.probability > 0.8) {
+        labelContainer.innerHTML = "✅ Welcome, Amany!";
       } else {
         labelContainer.innerHTML = "🚫 Unknown Face";
       }
+
+      // Optional: show all class probabilities
+      // for (let i = 0; i < maxPredictions; i++) {
+      //   labelContainer.childNodes[i].innerHTML =
+      //       prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+      // }
+    }
+
+    function stopRecognition() {
+      if (webcam) webcam.stop();
+      window.cancelAnimationFrame(rafId);
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      labelContainer.innerHTML = "Recognition stopped.";
     }
   </script>
 </body>

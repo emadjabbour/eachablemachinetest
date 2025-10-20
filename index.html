@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Face Recognition - Teachable Machine (Laptop Camera)</title>
+  <title>Face Recognition - Teachable Machine</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image"></script>
   <style>
@@ -21,65 +21,89 @@
       font-size: 22px;
       font-weight: bold;
     }
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <h2>📷 Face Recognition (Laptop Camera)</h2>
-  <button onclick="init()">Start Recognition</button>
+  <button id="start-btn">Start Recognition</button>
+  <button id="stop-btn">Stop Recognition</button>
   <br>
   <video id="webcam" width="320" height="240" autoplay muted></video>
-  <div id="label-container"></div>
+  <div id="label-container">⏳ Waiting to start...</div>
 
   <script>
-    // Use relative path for GitHub Pages
-    const URL = "./model/"; 
+    const URL = "./model/"; // Model folder relative to index.html
     let model, maxPredictions;
     const video = document.getElementById("webcam");
     const labelContainer = document.getElementById("label-container");
+    let stream;
+    let running = false;
 
-    async function init() {
+    // Load the model once at page load
+    async function loadModel() {
       labelContainer.innerHTML = "⏳ Loading model...";
-
-      // Load Teachable Machine model from GitHub Pages
       model = await tmImage.load(URL + "model.json", URL + "metadata.json");
       maxPredictions = model.getTotalClasses();
+      labelContainer.innerHTML = "✅ Model loaded. Click Start!";
+    }
 
-      // Start laptop camera
+    async function startRecognition() {
+      if (running) return; // Prevent multiple clicks
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
-        video.onloadeddata = () => {
-          labelContainer.innerHTML = "✅ Webcam started!";
-          loop();
-        };
+        video.play();
+        running = true;
+        labelContainer.innerHTML = "✅ Webcam started!";
+        loop();
       } catch (err) {
         labelContainer.innerHTML = "❌ Cannot access webcam: " + err;
         console.error(err);
       }
     }
 
+    function stopRecognition() {
+      if (!running) return;
+      running = false;
+      video.pause();
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      labelContainer.innerHTML = "🛑 Recognition stopped.";
+    }
+
     async function loop() {
+      if (!running) return;
       await predict();
       window.requestAnimationFrame(loop);
     }
 
     async function predict() {
       if (!model) return;
-
       const prediction = await model.predict(video);
       let highest = prediction[0];
       for (let i = 1; i < prediction.length; i++) {
-        if (prediction[i].probability > highest.probability) {
-          highest = prediction[i];
-        }
+        if (prediction[i].probability > highest.probability) highest = prediction[i];
       }
-
       if (highest.className === "Me" && highest.probability > 0.8) {
         labelContainer.innerHTML = "✅ Welcome, Emad!";
       } else {
         labelContainer.innerHTML = "🚫 Unknown Face";
       }
     }
+
+    // Button events
+    document.getElementById("start-btn").addEventListener("click", startRecognition);
+    document.getElementById("stop-btn").addEventListener("click", stopRecognition);
+
+    // Load model when page loads
+    window.addEventListener("load", loadModel);
   </script>
 </body>
 </html>

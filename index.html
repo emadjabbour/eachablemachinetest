@@ -8,18 +8,34 @@
   <style>
     body { font-family: sans-serif; text-align: center; background: #f5f5f5; padding: 20px; }
     h2 { margin-bottom: 10px; }
+    #controls { margin: 20px; }
     #webcam-container { margin-top: 20px; display: inline-block; }
-    #label-container { margin-top: 15px; font-size: 20px; font-weight: bold; }
-    button { padding: 10px 20px; font-size: 16px; margin: 10px; cursor: pointer; }
+    #label-container { margin-top: 15px; font-size: 20px; font-weight: bold; max-height: 200px; overflow-y: auto; }
+    button, input, select { padding: 8px 12px; margin: 5px; font-size: 14px; }
     video, canvas { border-radius: 10px; border: 3px solid #333; }
   </style>
 </head>
 <body>
   <h2>Teachable Machine - Face Recognition</h2>
-  <div>
+
+  <div id="controls">
     <button id="start-btn">Start Recognition</button>
     <button id="stop-btn" disabled>Stop Recognition</button>
+    <br>
+    <label>Webcam Width: <input type="number" id="cam-width" value="320" min="100" max="1280"></label>
+    <label>Height: <input type="number" id="cam-height" value="320" min="100" max="1280"></label>
+    <label>Flip Webcam: 
+      <select id="cam-flip">
+        <option value="true" selected>Yes</option>
+        <option value="false">No</option>
+      </select>
+    </label>
+    <br>
+    <label>Confidence Threshold: <input type="range" id="conf-threshold" min="0" max="1" step="0.01" value="0.8">
+      <span id="conf-value">0.8</span>
+    </label>
   </div>
+
   <div id="webcam-container"></div>
   <div id="label-container"></div>
 
@@ -29,6 +45,10 @@
 
     const startBtn = document.getElementById("start-btn");
     const stopBtn = document.getElementById("stop-btn");
+    const confSlider = document.getElementById("conf-threshold");
+    const confValue = document.getElementById("conf-value");
+
+    confSlider.oninput = () => { confValue.innerText = confSlider.value; };
 
     startBtn.onclick = init;
     stopBtn.onclick = stopRecognition;
@@ -38,8 +58,8 @@
       labelContainer = document.getElementById("label-container");
       labelContainer.innerHTML = "Loading model...";
 
+      // Load model
       try {
-        // Load model
         model = await tmImage.load(URL + "model.json", URL + "metadata.json");
         maxPredictions = model.getTotalClasses();
       } catch (err) {
@@ -49,10 +69,14 @@
         return;
       }
 
+      // Setup webcam
       try {
-        // Setup webcam
-        webcam = new tmImage.Webcam(320, 320, true);
-        await webcam.setup(); // request access
+        const width = parseInt(document.getElementById("cam-width").value);
+        const height = parseInt(document.getElementById("cam-height").value);
+        const flip = document.getElementById("cam-flip").value === "true";
+
+        webcam = new tmImage.Webcam(width, height, flip);
+        await webcam.setup();
         await webcam.play();
         document.getElementById("webcam-container").appendChild(webcam.canvas);
       } catch (err) {
@@ -68,28 +92,37 @@
     }
 
     async function loop() {
-      if (!webcam || !webcam.canvas) return; // safety check
+      if (!webcam || !webcam.canvas) return;
       webcam.update();
       await predict();
       rafId = window.requestAnimationFrame(loop);
     }
 
     async function predict() {
-      if (!model || !webcam || !webcam.canvas) return; // safety check
+      if (!model || !webcam || !webcam.canvas) return;
       try {
         const prediction = await model.predict(webcam.canvas);
+        const threshold = parseFloat(confSlider.value);
         let highest = prediction[0];
+
         for (let i = 1; i < prediction.length; i++) {
           if (prediction[i].probability > highest.probability) highest = prediction[i];
         }
 
-        if (highest.className === "Emad" && highest.probability > 0.8) {
-          labelContainer.innerHTML = "✅ Welcome, Emad!";
-        } else if (highest.className === "Amany" && highest.probability > 0.8) {
-          labelContainer.innerHTML = "✅ Welcome, Amany!";
+        // Display recognition message
+        if (highest.probability > threshold) {
+          labelContainer.innerHTML = `✅ ${highest.className} (${(highest.probability*100).toFixed(1)}%)`;
         } else {
           labelContainer.innerHTML = "🚫 Unknown Face";
         }
+
+        // Scrollable list of all predictions
+        let allLabels = "<br><strong>All probabilities:</strong><br>";
+        prediction.forEach(p => {
+          allLabels += `${p.className}: ${(p.probability*100).toFixed(1)}%<br>`;
+        });
+        labelContainer.innerHTML += allLabels;
+
       } catch (err) {
         console.error("Prediction error:", err);
       }

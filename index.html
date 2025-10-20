@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Face Recognition - Teachable Machine (IP Camera)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #f5f5f5;
+    }
+    video {
+      border-radius: 10px;
+      margin-top: 20px;
+      border: 3px solid #333;
+    }
+    #label-container {
+      margin-top: 15px;
+      font-size: 22px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h2>📷 Face Recognition (IP Camera)</h2>
+  <button onclick="init()">Start Recognition</button>
+  <br>
+  <video id="ipcam" width="320" height="240" autoplay></video>
+  <div id="label-container"></div>
+
+  <script>
+    const URL = "./model/";
+    let model, labelContainer, maxPredictions;
+    const video = document.getElementById("ipcam");
+
+    async function init() {
+      // Load model
+      model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+      maxPredictions = model.getTotalClasses();
+
+      // Set IP camera stream
+      video.src = "http://192.168.1.114:4747/video"; // your phone camera URL
+
+      // Wait until the video is playing
+      video.addEventListener('playing', () => {
+        console.log("Camera stream started");
+        loop();
+      });
+    }
+
+    async function loop() {
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      if (!model) return;
+      const prediction = await model.predict(video);
+      let highest = prediction[0];
+      for (let i = 1; i < prediction.length; i++) {
+        if (prediction[i].probability > highest.probability) {
+          highest = prediction[i];
+        }
+      }
+
+      if (highest.className === "Me" && highest.probability > 0.8) {
+        labelContainer.innerHTML = "✅ Welcome, Emad!";
+      } else {
+        labelContainer.innerHTML = "🚫 Unknown Face";
+      }
+    }
+  </script>
+</body>
+</html>

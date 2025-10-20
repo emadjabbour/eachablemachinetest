@@ -6,12 +6,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      background: #f5f5f5;
-      padding: 20px;
-    }
+    body { font-family: sans-serif; text-align: center; background: #f5f5f5; padding: 20px; }
     h2 { margin-bottom: 10px; }
     #webcam-container { margin-top: 20px; display: inline-block; }
     #label-container { margin-top: 15px; font-size: 20px; font-weight: bold; }
@@ -29,7 +24,7 @@
   <div id="label-container"></div>
 
   <script>
-    const URL = "./my_model/"; // path to your Teachable Machine model folder
+    const URL = "./my_model/"; // your model folder
     let model, webcam, labelContainer, maxPredictions, rafId;
 
     const startBtn = document.getElementById("start-btn");
@@ -40,55 +35,64 @@
 
     async function init() {
       startBtn.disabled = true;
-
-      // Load Teachable Machine model
-      model = await tmImage.load(URL + "model.json", URL + "metadata.json");
-      maxPredictions = model.getTotalClasses();
-
-      // Setup webcam
-      webcam = new tmImage.Webcam(320, 320, true); // width, height, flip
-      await webcam.setup(); // request access
-      await webcam.play();
-      document.getElementById("webcam-container").appendChild(webcam.canvas);
-
       labelContainer = document.getElementById("label-container");
-      labelContainer.innerHTML = ""; // clear previous labels
-      for (let i = 0; i < maxPredictions; i++) {
-        labelContainer.appendChild(document.createElement("div"));
+      labelContainer.innerHTML = "Loading model...";
+
+      try {
+        // Load model
+        model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+        maxPredictions = model.getTotalClasses();
+      } catch (err) {
+        labelContainer.innerHTML = "❌ Failed to load model.";
+        console.error(err);
+        startBtn.disabled = false;
+        return;
       }
 
+      try {
+        // Setup webcam
+        webcam = new tmImage.Webcam(320, 320, true);
+        await webcam.setup(); // request access
+        await webcam.play();
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+      } catch (err) {
+        labelContainer.innerHTML = "❌ Cannot access webcam.";
+        console.error(err);
+        startBtn.disabled = false;
+        return;
+      }
+
+      labelContainer.innerHTML = "📷 Webcam started";
       stopBtn.disabled = false;
       loop();
     }
 
     async function loop() {
-      webcam.update(); // update the webcam frame
+      if (!webcam || !webcam.canvas) return; // safety check
+      webcam.update();
       await predict();
       rafId = window.requestAnimationFrame(loop);
     }
 
     async function predict() {
-      if (!model) return;
-      const prediction = await model.predict(webcam.canvas);
+      if (!model || !webcam || !webcam.canvas) return; // safety check
+      try {
+        const prediction = await model.predict(webcam.canvas);
+        let highest = prediction[0];
+        for (let i = 1; i < prediction.length; i++) {
+          if (prediction[i].probability > highest.probability) highest = prediction[i];
+        }
 
-      let highest = prediction[0];
-      for (let i = 1; i < prediction.length; i++) {
-        if (prediction[i].probability > highest.probability) highest = prediction[i];
+        if (highest.className === "Emad" && highest.probability > 0.8) {
+          labelContainer.innerHTML = "✅ Welcome, Emad!";
+        } else if (highest.className === "Amany" && highest.probability > 0.8) {
+          labelContainer.innerHTML = "✅ Welcome, Amany!";
+        } else {
+          labelContainer.innerHTML = "🚫 Unknown Face";
+        }
+      } catch (err) {
+        console.error("Prediction error:", err);
       }
-
-      if (highest.className === "Emad" && highest.probability > 0.8) {
-        labelContainer.innerHTML = "✅ Welcome, Emad!";
-      } else if (highest.className === "Amany" && highest.probability > 0.8) {
-        labelContainer.innerHTML = "✅ Welcome, Amany!";
-      } else {
-        labelContainer.innerHTML = "🚫 Unknown Face";
-      }
-
-      // Optional: show all class probabilities
-      // for (let i = 0; i < maxPredictions; i++) {
-      //   labelContainer.childNodes[i].innerHTML =
-      //       prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-      // }
     }
 
     function stopRecognition() {

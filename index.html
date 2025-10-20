@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Face Recognition - Teachable Machine (IP Camera)</title>
+  <title>Face Recognition - Teachable Machine (Laptop Camera)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image"></script>
   <style>
@@ -24,30 +24,38 @@
   </style>
 </head>
 <body>
-  <h2>📷 Face Recognition (IP Camera)</h2>
+  <h2>📷 Face Recognition (Laptop Camera)</h2>
   <button onclick="init()">Start Recognition</button>
   <br>
-  <video id="ipcam" width="320" height="240" autoplay></video>
+  <video id="webcam" width="320" height="240" autoplay muted></video>
   <div id="label-container"></div>
 
   <script>
-    const URL = "./model/";
-    let model, labelContainer, maxPredictions;
-    const video = document.getElementById("ipcam");
+    // Use relative path for GitHub Pages
+    const URL = "./model/"; 
+    let model, maxPredictions;
+    const video = document.getElementById("webcam");
+    const labelContainer = document.getElementById("label-container");
 
     async function init() {
-      // Load model
+      labelContainer.innerHTML = "⏳ Loading model...";
+
+      // Load Teachable Machine model from GitHub Pages
       model = await tmImage.load(URL + "model.json", URL + "metadata.json");
       maxPredictions = model.getTotalClasses();
 
-      // Set IP camera stream
-      video.src = "http://192.168.1.107:4747/video"; // your phone camera URL
-
-      // Wait until the video is playing
-      video.addEventListener('playing', () => {
-        console.log("Camera stream started");
-        loop();
-      });
+      // Start laptop camera
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        video.onloadeddata = () => {
+          labelContainer.innerHTML = "✅ Webcam started!";
+          loop();
+        };
+      } catch (err) {
+        labelContainer.innerHTML = "❌ Cannot access webcam: " + err;
+        console.error(err);
+      }
     }
 
     async function loop() {
@@ -57,6 +65,7 @@
 
     async function predict() {
       if (!model) return;
+
       const prediction = await model.predict(video);
       let highest = prediction[0];
       for (let i = 1; i < prediction.length; i++) {
@@ -74,5 +83,3 @@
   </script>
 </body>
 </html>
-
-
